@@ -28,5 +28,3 @@ check_environment_compatibility()
 from . import agol_data_export
 from . import agol_data_import
 from . import utils
-
-spark = SparkSession.builder.getOrCreate()
