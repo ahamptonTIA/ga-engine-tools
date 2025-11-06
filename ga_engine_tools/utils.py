@@ -26,17 +26,16 @@ _logger = logging.getLogger(__name__)
 # Compatibility mapping for GeoAnalytics Engine and Databricks Runtimes.
 # Maps GAE major.minor versions to (min_dbr, max_dbr) tuples (inclusive).
 GAE_DBR_COMPATIBILITY = {
-    parse_version("1.1"): (parse_version("7.3"), parse_version("12.1")),
-    parse_version("1.2"): (parse_version("7.3"), parse_version("13.2")),
-    parse_version("1.3"): (parse_version("9.1"), parse_version("14.2")),
-    parse_version("1.4"): (parse_version("9.1"), parse_version("15.2")),
-    parse_version("1.5"): (parse_version("11.3"), parse_version("15.4")),
-    parse_version("1.6"): (parse_version("11.3"), parse_version("16.4")),
+    parse_version("1.1"): (parse_version("7.3"), parse_version("12.9")),
+    parse_version("1.2"): (parse_version("7.3"), parse_version("13.9")),
+    parse_version("1.3"): (parse_version("9.1"), parse_version("14.9")),
+    parse_version("1.4"): (parse_version("9.1"), parse_version("15.9")),
+    parse_version("1.5"): (parse_version("11.3"), parse_version("15.9")),
+    parse_version("1.6"): (parse_version("11.3"), parse_version("16.9")),
     parse_version("1.7"): (parse_version("12.2"), parse_version("17.9")),
     # Update as new versions are validated:
     # https://developers.arcgis.com/geoanalytics/install/databricks/
 }
-
 # ------------------------------------------------------------------------------------------
 
 def check_environment_compatibility():
