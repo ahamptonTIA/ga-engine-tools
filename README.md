@@ -42,7 +42,7 @@ Before installing `ga-engine-tools`, ensure your environment has:
 
 To install the package directly from the GitHub repository in DataBricks:
 ```
-%pip install -e git+https://github.com/ahamptonTIA/ga-engine-tools.git
+%pip install git+https://github.com/ahamptonTIA/ga-engine-tools.git
 ```
 
 ```bash
