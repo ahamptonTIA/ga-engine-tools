@@ -32,6 +32,7 @@ GAE_DBR_COMPATIBILITY = {
     parse_version("1.4"): (parse_version("9.1"), parse_version("15.2")),
     parse_version("1.5"): (parse_version("11.3"), parse_version("15.4")),
     parse_version("1.6"): (parse_version("11.3"), parse_version("16.4")),
+    parse_version("1.7"): (parse_version("12.2"), parse_version("17.9")),
     # Update as new versions are validated:
     # https://developers.arcgis.com/geoanalytics/install/databricks/
 }
