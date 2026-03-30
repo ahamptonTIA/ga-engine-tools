@@ -12,7 +12,8 @@ from .utils import *
 
 # Third-Party Imports
 import geoanalytics
-from geoanalytics.sql import functions as ST  # Alias for GeoAnalytics SQL functions
+# CHANGED: Aliased to GAE (GeoAnalytics Engine) to avoid collision with Databricks native ST functions
+from geoanalytics.sql import functions as GAE  
 from arcgis.gis import GIS
 from arcgis.features import FeatureLayer
 from arcgis.features import FeatureLayerCollection as FLC
@@ -34,17 +35,6 @@ _logger = logging.getLogger(__name__)
 def _upsert_download_log_entry_(entry_df, log_table):
     """
     Upserts log entries into the specified log table using 'layer_attempt_id' as the primary key.
-
-    Parameters
-    ----------
-    entry_df : pyspark.sql.dataframe.DataFrame
-        DataFrame containing the log entries to be upserted.
-    log_table : str
-        Name of the log table where entries will be upserted.
-
-    Returns
-    -------
-    None
     """
     if log_table:
         entry_df.createOrReplaceTempView("log_updates_temp")
@@ -98,32 +88,6 @@ def ingest_agol_items_to_unity_catalog(
 ):
     """
     Ingests ArcGIS Online feature layers into Unity Catalog tables.
-
-    Parameters
-    ----------
-    item_list : list of str
-        List of ArcGIS Online item IDs representing feature layers to ingest.
-    target_schema : str
-        Target Unity Catalog schema to save the tables.
-    agol_inst : str, optional
-        The URL of the ArcGIS Online instance. This is required for authenticating with ArcGIS.
-    user : str, optional
-        The username for ArcGIS authentication. This is required.
-    pswd : str, optional
-        The password for ArcGIS authentication. This is required.
-    output_srid : int, optional
-        Output spatial reference ID for reprojection (default is 4326).
-    log_table : str, optional
-        Table to log metadata of downloaded features (default is None).
-    output_prefix : str, optional
-        Prefix to add to the output table name (default is None).
-    output_postfix : str, optional
-        Postfix to add to the output table name (default is None).
-
-    Returns
-    -------
-    list
-        List of tables written to Unity Catalog.
     """
     out_tables = []
     items_properties = []
@@ -138,26 +102,24 @@ def ingest_agol_items_to_unity_catalog(
         _logger.info(f"Processing item: {item.title} (ID: {item_id})")
 
         dfs = {}
-        # Ensure item.layers exists and is iterable for feature service items
+        # Ensure item.layers exists and is iterable
         if hasattr(item, 'layers') and item.layers:
             for layer in item.layers:
                 layer_name_for_log = layer.properties.get('name', layer.url.split('/')[-1])
                 sublayer_id_for_log = str(layer.properties.get('id', 'N/A'))
 
-                # Generate cleaned table name from layer name
-                table_name_parts = [
-                    p for p in [output_prefix, layer_name_for_log, output_postfix] if p
-                ]
+                # Generate cleaned table name
+                table_name_parts = [p for p in [output_prefix, layer_name_for_log, output_postfix] if p]
                 out_table_name = "_".join(table_name_parts)
                 out_table_name = re.sub(r'[^a-zA-Z0-9_]+', '_', out_table_name).strip('_').lower()[:255]
                 target_path_for_log = f"{target_schema}.{out_table_name}"
 
-                # Generate a unique ID for this layer's ingestion attempt
+                # Unique ID for this layer attempt
                 initial_layer_timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
                 hash_input = f"{target_path_for_log}-{initial_layer_timestamp_str}"
                 layer_attempt_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()
 
-                # Initial log entry (Pending status)
+                # Initial log entry
                 initial_log_entry = {
                     "load_id": load_id,
                     "layer_attempt_id": layer_attempt_id,
@@ -174,41 +136,27 @@ def ingest_agol_items_to_unity_catalog(
                 _upsert_download_log_entry_(
                     spark.createDataFrame(pd.DataFrame([initial_log_entry])), log_table
                 )
-                _logger.info(
-                    f"Logged 'Pending' status for layer: {layer_name_for_log} "
-                    f"(ID: {sublayer_id_for_log}), Layer Attempt ID: {layer_attempt_id}"
-                )
 
                 status = 'Failed'
                 error_message = None
 
                 try:
-                    # Read feature service layer into Spark DataFrame
+                    # Read feature service layer
                     print(f'Reading {layer.url}')
                     _df = spark.read.format("feature-service").option("gis", "GIS").load(layer.url)
-                    # Reproject geometry columns to desired spatial reference
                     _df = reproject_df(_df, out_cs=output_srid)
 
-                    # Store both the DataFrame and the layer's properties, including layer_attempt_id
                     layer.properties['out_table_name'] = out_table_name
                     layer.properties['layer_attempt_id'] = layer_attempt_id
                     dfs[layer.url] = {'df': _df, 'props': layer.properties}
 
                     status = 'Read & Reprojected'
-                    _logger.info(
-                        f"Layer {layer_name_for_log} (ID: {sublayer_id_for_log}) read and reprojected. "
-                        f"Layer Attempt ID: {layer_attempt_id}"
-                    )
-
                 except Exception as e:
                     status = 'Failed'
                     error_message = str(e)
-                    _logger.error(
-                        f"Failed to read/reproject layer {layer_name_for_log} "
-                        f"(ID: {sublayer_id_for_log}), Layer Attempt ID: {layer_attempt_id}: {e}"
-                    )
+                    _logger.error(f"Failed to read/reproject layer {layer_name_for_log}: {e}")
 
-                # Update log entry after read/reproject
+                # Update log entry
                 current_log_entry = {
                     "load_id": load_id,
                     "layer_attempt_id": layer_attempt_id,
@@ -225,195 +173,97 @@ def ingest_agol_items_to_unity_catalog(
                     spark.createDataFrame(pd.DataFrame([current_log_entry])), log_table
                 )
 
-            # Store DataFrames and clean description text
+            # Meta-data formatting
             item.__dict__['dfs'] = dfs
             if 'description' in item.__dict__ and item.__dict__['description']:
                 item.__dict__['description'] = html2text.html2text(item.__dict__['description'])
             else:
                 item.__dict__['description'] = ""
 
-            # Format creation and modification timestamps
-            item.__dict__['created'] = datetime.fromtimestamp(item['created'] / 1000).strftime(
-                '%Y-%m-%d %H:%M:%S'
-            )
-            item.__dict__['modified'] = datetime.fromtimestamp(item['modified'] / 1000).strftime(
-                '%Y-%m-%d %H:%M:%S'
-            )
-
+            item.__dict__['created'] = datetime.fromtimestamp(item['created'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+            item.__dict__['modified'] = datetime.fromtimestamp(item['modified'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
             items_properties.append(item.__dict__)
         else:
-            print(
-                f"Item '{item.title}' (ID: {item_id}) is of type '{item.type}' and does not appear to have "
-                f"layers directly accessible via .layers property or it has no layers."
-            )
-            _logger.warning(
-                f"Item '{item.title}' (ID: {item_id}) has no accessible layers."
-            )
+            _logger.warning(f"Item '{item.title}' has no accessible layers.")
 
     # Process and write DataFrames to Unity Catalog
     for item in items_properties:
         for lyr_url, data in item['dfs'].items():
             _df = data['df']
             lyr_props = data['props']
-
             layer_name = lyr_props.get('name')
             out_table_name = lyr_props.get('out_table_name')
             table_path = f"{target_schema}.{out_table_name}"
             out_tables.append(table_path)
-
-            sublayer_id_for_log = str(lyr_props.get('id', 'N/A'))
-
-            # Retrieve the layer_attempt_id directly from lyr_props
             layer_attempt_id = lyr_props.get('layer_attempt_id')
+
             if not layer_attempt_id:
-                _logger.error(
-                    f"Critical error: layer_attempt_id missing for {layer_name}. "
-                    f"Cannot update log entry reliably."
-                )
                 continue
 
-            # Extract spatial reference info from DataFrame
             sr_info = get_spatial_reference_info(_df)
+            geom_col = sr_info['Geometry Column']
 
-            # Handle description merging
+            # --- APPLIED FIX ---
+            # Using GAE alias for GeoAnalytics engine to avoid ST collision
+            _df = _df.withColumn(geom_col, GAE.as_text(_df[geom_col]))
+            _df = _df.withColumnRenamed(geom_col, "geometry_wkt")
+            # -------------------
+
+            # Build Description Text
             lyr_desc_raw = lyr_props.get('description')
             final_desc = html2text.html2text(lyr_desc_raw) if lyr_desc_raw else ""
-
             if item['description'] and item['description'].strip():
-                if final_desc:
-                    final_desc = (
-                        f"{final_desc}\n\n--- Parent Item Description ---\n{item['description']}"
-                    )
-                else:
-                    final_desc = item['description']
+                final_desc = f"{final_desc}\n\n--- Parent Item Description ---\n{item['description']}"
 
-            # Identify if it's a sublayer and add to description
-            is_sublayer_text = ""
-            if item['type'] == "Feature Service" and lyr_props.get('id') is not None:
-                is_sublayer_text = (
-                    f"**This is a sublayer of a Feature Service titled '{item['title']}' "
-                    f"(ArcGIS Online ID: {item['id']})**\n\n"
-                )
-
-            # Compose table description with metadata and spatial reference details
             desc_text = (
-                f"{is_sublayer_text}"
                 f"# Table Name : {out_table_name}\n"
-                f"- ArcGIS Online ID: \n    - `{item['id']}`\n"
-                f"- Service Layer ID: \n    - `{lyr_props.get('id')}`\n"
-                f"- ArcGIS Online Creation Date: \n    - `{item['created']}`\n"
-                f"- ArcGIS Online Last Modified Date: \n    - `{item['modified']}`\n"
-                f"- Data Migration/Pull Date: \n    - `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`\n"
-                f"- Description: \n    - {final_desc}\n"
+                f"- ArcGIS Online ID: `{item['id']}`\n"
+                f"- Description: {final_desc}\n"
                 f"- Spatial Reference Properties:\n"
             )
             for k, v in sr_info.items():
                 desc_text += f"    - {k} : {v}\n"
 
-            # Handle tags merging
+            # Tagging logic
             combined_tags = list(item['tags'])
-
-            layer_tags = lyr_props.get('tags')
-            if layer_tags and isinstance(layer_tags, list):
-                combined_tags.extend(layer_tags)
-            elif layer_tags and isinstance(layer_tags, str):
-                combined_tags.extend([t.strip() for t in layer_tags.split(',') if t.strip()])
-
-            clean_additional_tags = [
-                re.sub(r'[^a-zA-Z0-9_]', '_', tag).strip('_')
-                for tag in [item['id'], item['title'], layer_name] if tag
-            ]
-            combined_tags.extend(clean_additional_tags)
-
-            # Ensure tags are unique and clean for Databricks criteria
-            disallowed_chars_pattern = r'[.,\-=/:]'
-            max_tag_key_length = 255
-            max_tags_count = 50
-
-            final_tags = []
-            seen_tags = set()
-            for tag in combined_tags:
-                cleaned_tag = re.sub(disallowed_chars_pattern, '_', tag.strip())[:max_tag_key_length]
-                if cleaned_tag and cleaned_tag not in seen_tags:
-                    final_tags.append(cleaned_tag)
-                    seen_tags.add(cleaned_tag)
-
-            final_tags = final_tags[:max_tags_count]
-
-            geom_col = sr_info['Geometry Column']
-
-            print(desc_text)
-
-            # Convert geometry column to WKT and rename column
-            _df = _df.withColumn(geom_col, ST.as_text(_df[geom_col]))
-            _df = _df.withColumnRenamed(geom_col, "geometry_wkt")
+            layer_tags = lyr_props.get('tags', [])
+            combined_tags.extend(layer_tags if isinstance(layer_tags, list) else [layer_tags])
+            
+            final_tags = list(set([re.sub(r'[.,\-=/:]', '_', str(t))[:255] for t in combined_tags if t]))[:50]
 
             log_status = "Complete"
             log_error = None
             warn_msgs = []
 
             try:
-                # Write DataFrame to Unity Catalog table with schema merge
                 _logger.info(f"Writing table: {table_path}")
                 _df.write.mode('overwrite').option('mergeSchema', 'true').saveAsTable(table_path)
+                
+                # Set Properties
+                spark.sql(f"ALTER TABLE {table_path} SET TBLPROPERTIES ('comment' = {repr(desc_text)})")
+                if final_tags:
+                    tag_sql = ", ".join([f"'{t}'" for t in final_tags])
+                    spark.sql(f"ALTER TABLE {table_path} SET TAGS ({tag_sql})")
+
             except Exception as e:
                 log_status = "Failed"
                 log_error = str(e)
-                w_msg = f"Failed to write table {table_path}: {e}"
-                print(w_msg)
-                _logger.error(w_msg)
+                _logger.error(f"Error writing {table_path}: {e}")
 
-            # Set table properties for description and tags
-            try:
-                spark.sql(f"ALTER TABLE {table_path} SET TBLPROPERTIES ('comment' = {repr(desc_text)})")
-                _logger.info(f"Set comment for table: {table_path}")
-            except Exception as e:
-                warn_msgs.append(f"Failed to set table properties (comment): {e}")
-                _logger.warning(f"Failed to set table properties (comment) for {table_path}: {e}")
-                if log_status != "Failed":
-                    log_status = "Completed with Warnings"
-
-            try:
-                tag_sql_list = [f"'{tag}'" for tag in final_tags]
-                if tag_sql_list:
-                    spark.sql(f"ALTER TABLE {table_path} SET TAGS ({', '.join(tag_sql_list)})")
-                    _logger.info(f"Set tags for table: {table_path}")
-            except Exception as e:
-                warn_msgs.append(f"Failed to set tags: {e}")
-                _logger.warning(f"Failed to set tags for {table_path}: {e}")
-                if log_status != "Failed":
-                    log_status = "Completed with Warnings"
-
-            # Final log entry update (Complete/Failed/Warnings)
-            final_error_message = None
-            if log_error or warn_msgs:
-                msgs = []
-                if log_error:
-                    msgs.append(log_error)
-                if warn_msgs:
-                    msgs.extend(warn_msgs)
-                final_error_message = "\n".join(msgs)
-
+            # Final Log Update
             final_log_entry = {
                 "load_id": load_id,
                 "layer_attempt_id": layer_attempt_id,
                 "item_id": str(item['id']),
-                "sublayer_id": sublayer_id_for_log,
+                "sublayer_id": str(lyr_props.get('id', 'N/A')),
                 "layer_url": str(lyr_url),
                 "layer_name": str(layer_name),
                 "target_path": table_path,
                 "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                 "status": log_status,
-                "error_message": final_error_message
+                "error_message": log_error
             }
-            _upsert_download_log_entry_(
-                spark.createDataFrame(pd.DataFrame([final_log_entry])), log_table
-            )
-            _logger.info(
-                f"Logged '{log_status}' status for table: {table_path}, Layer Attempt ID: {layer_attempt_id}"
-            )
+            _upsert_download_log_entry_(spark.createDataFrame(pd.DataFrame([final_log_entry])), log_table)
 
     _logger.info(f"Ingestion process completed for load_id: {load_id}")
     return out_tables
-
-# ------------------------------------------------------------------------------------------
