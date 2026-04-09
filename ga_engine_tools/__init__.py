@@ -12,8 +12,12 @@ Raises:
 import importlib.util
 import logging
 
-# Set up package-level logging
+# Set package version
+__version__ = "1.0.0"
+
+# Set up package-level logging with a NullHandler
 _logger = logging.getLogger(__name__)
+_logger.addHandler(logging.NullHandler())
 
 # 1. Check if the 'geoanalytics' package is installed
 if importlib.util.find_spec("geoanalytics") is None:
@@ -22,24 +26,21 @@ if importlib.util.find_spec("geoanalytics") is None:
         "Please install it to use geoanalytics features: "
         "https://developers.arcgis.com/geoanalytics/install/databricks/"
     )
-    
-# 2. Import the compatibility check function from utils
-# We use relative imports to stay within the package structure
+
+# 2. Import core functions from utils for top-level access
 from .utils import (
     check_environment_compatibility,
     initialize_gis_connection,
     reproject_df
 )
 
-# 3. Execute the check immediately upon package import
-# This provides the user with immediate feedback on DBR/GAE versions
+# 3. Execute compatibility check immediately upon package import
 try:
     check_environment_compatibility()
 except Exception as e:
     _logger.warning(f"Compatibility check could not be completed: {e}")
 
-# 4. Import submodules for convenient access
-# Ensure these submodules DO NOT 'import geoanalytics.sql.functions as ST'
+# 4. Import submodules to expose them under the package namespace
 from . import agol_data_export
 from . import agol_data_import
 from . import utils
