@@ -16,7 +16,7 @@ from typing import List, Optional, Dict, Any
 import pandas as pd
 import html2text
 import geoanalytics
-from geoanalytics.sql import functions as GAE 
+# from geoanalytics.sql import functions as GAE 
 from arcgis.gis import GIS
 
 # Databricks & Spark Native

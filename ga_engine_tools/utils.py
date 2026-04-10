@@ -19,7 +19,7 @@ from packaging.version import parse as parse_version
 
 # Esri core (connectivity and data loading)
 import geoanalytics
-from geoanalytics.sql import functions as GAE 
+# from geoanalytics.sql import functions as GAE 
 from arcgis.gis import GIS
 
 # Databricks & Spark native
