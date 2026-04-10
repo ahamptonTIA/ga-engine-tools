@@ -1,50 +1,25 @@
-# Comprehensive Documentation
+# API Documentation
 
-## Functions from `utils.py`
+## Module: utils
 
-### function_name
-**Description:** Description of what the function does.
-
-**Parameters:**
-- `param1` (type): Description of parameter 1
-- `param2` (type): Description of parameter 2
-
-**Returns:**
-- return_type: Description of return value.
-
-**Example:**
+### Function: example_function
+#### Parameters:
+- `param1` (int): Description of parameter 1.
+- `param2` (str): Description of parameter 2.
+#### Returns:
+- (bool): Explanation of the return type.
+#### Example:
 ```python
-example_code_here
+result = example_function(5, "example")
 ```
 
-## Functions from `agol_data_export.py`
+### Additional Functions
+... (continue for other functions)
 
-### function_name
-**Description:** Description of what the function does.
+## Module: agol_data_export
 
-**Parameters:**
-- `param1` (type): Description of parameter 1
+... (continue similarly)
 
-**Returns:**
-- return_type: Description of return value.
+## Module: __init__
 
-**Example:**
-```python
-example_code_here
-```
-
-## Functions from `__init__.py`
-
-### function_name
-**Description:** Description of what the function does.
-
-**Parameters:**
-- `param1` (type): Description of parameter 1
-
-**Returns:**
-- return_type: Description of return value.
-
-**Example:**
-```python
-example_code_here
-```
+... (continue similarly)
