@@ -4,6 +4,9 @@ Utilities for ingesting ArcGIS Online feature layers into Databricks Unity Catal
 This module automates the extraction of spatial data and its associated metadata,
 performing reprojection and standardizing storage in Delta tables.
 """
+# Functions defined in this module (fully qualified names):
+#   utils._upsert_download_log_entry
+#   utils.ingest_agol_items_to_unity_catalog
 
 import re
 import uuid

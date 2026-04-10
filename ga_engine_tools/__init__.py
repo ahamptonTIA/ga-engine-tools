@@ -20,7 +20,14 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 def _verify_geoanalytics_installed():
-    """Verify the presence of geoanalytics before package initialization."""
+    """
+    Verify the presence of geoanalytics before package initialization.
+
+    Raises
+    -------
+    ImportError
+        If the 'geoanalytics' package is not installed.
+    """
     if importlib.util.find_spec("geoanalytics") is None:
         raise ImportError(
             "The 'geoanalytics' package is required but was not found. "

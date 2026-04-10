@@ -5,6 +5,13 @@ This module provides robust orchestration for publishing large datasets,
 including schema alignment, batch processing, and Delta-based logging.
 """
 
+# Functions defined in this module (fully qualified names):
+# - set_pyspark_schema_from_feature_service
+# - _feature_service_log
+# - check_create_feature_service
+# - write_df_in_chunks
+# - update_arcgis_feature_service
+
 import time
 import logging
 from datetime import datetime

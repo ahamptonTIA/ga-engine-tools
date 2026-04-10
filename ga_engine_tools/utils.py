@@ -5,6 +5,14 @@ This module provides environment verification, GIS connection management,
 and spatial transformation utilities tailored for Databricks and ArcGIS.
 """
 
+# Functions defined in this module (fully qualified names):
+# geoanalytics_utils.check_environment_compatibility
+# geoanalytics_utils.initialize_gis_connection
+# geoanalytics_utils.get_spatial_reference_info
+# geoanalytics_utils.reproject_df
+# geoanalytics_utils.fix_and_standardize_geometry
+# geoanalytics_utils.check_st_native_status
+
 import re
 import logging
 import importlib.metadata
@@ -43,6 +51,11 @@ GAE_DBR_COMPATIBILITY = {
 def check_environment_compatibility() -> None:
     """
     Verify compatibility between Databricks Runtime and GeoAnalytics Engine.
+
+    Returns
+    -------
+    None
+        Logs compatibility status and warnings if applicable.
     """
     current_dbr_version = None
     current_gae_version = None
@@ -142,6 +155,17 @@ def initialize_gis_connection(
 def get_spatial_reference_info(df: DataFrame) -> Dict[str, Any]:
     """
     Extract spatial reference details from a Spark DataFrame geometry field.
+
+    Parameters
+    ----------
+    df : pyspark.sql.DataFrame
+        Input Spark DataFrame containing spatial geometry.
+
+    Returns
+    -------
+    dict
+        Dictionary with spatial reference information, including geometry column,
+        spatial reference WKID, WKT, projection status, units, and reference name.
     """
     try:
         geom_col = df.st.get_geometry_field()
@@ -167,6 +191,18 @@ def get_spatial_reference_info(df: DataFrame) -> Dict[str, Any]:
 def reproject_df(df: DataFrame, out_cs: int = 4326) -> DataFrame:
     """
     Reproject geometry using GAE ST_Transform. Defaults to WGS84 (4326).
+
+    Parameters
+    ----------
+    df : pyspark.sql.DataFrame
+        Input Spark DataFrame containing spatial geometry.
+    out_cs : int, optional
+        Target spatial reference WKID. Defaults to 4326 (WGS84).
+
+    Returns
+    -------
+    pyspark.sql.DataFrame
+        DataFrame with geometry reprojected to the target spatial reference.
     """
     geom_col = df.st.get_geometry_field()
     if not geom_col:
@@ -193,6 +229,22 @@ def fix_and_standardize_geometry(
 ) -> str:
     """
     Repair and standardize geometries into GeoAnalytics binary types.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the source table containing spatial data.
+    output_table : str
+        Name of the output table to save standardized geometries.
+    geom_col : str
+        Name of the geometry column in the source table.
+    tgt_srid : int, optional
+        Target spatial reference WKID. Defaults to 4326.
+
+    Returns
+    -------
+    str
+        Name of the output table with standardized geometries.
     """
     logger.info(f"Standardizing geometry for table: {source_table}")
     df_spark = spark.read.table(source_table)
@@ -256,6 +308,16 @@ def fix_and_standardize_geometry(
 def check_st_native_status(st_functions_to_test: List[str]) -> None:
     """
     Diagnostic tool to verify if ST_ functions are powered by Databricks or ESRI.
+
+    Parameters
+    ----------
+    st_functions_to_test : list of str
+        List of spatial function names to check.
+
+    Returns
+    -------
+    None
+        Prints the ownership status of each function.
     """
     print(f"{'Function':<15} | {'Owner / Class Path'}")
     print("-" * 60)
