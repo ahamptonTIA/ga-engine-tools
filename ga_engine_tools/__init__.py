@@ -1,51 +1,55 @@
 """
-Module initialization for ga_engine_tools package.
+ga_engine_tools: Utilities for ArcGIS GeoAnalytics and PySpark.
 
-- Checks environment/GeoAnalytics compatibility on import.
-- Verifies that the 'geoanalytics' package is installed.
-- Ensures Native Geometry priority by avoiding conflicting SQL imports.
-
-Raises:
-    ImportError: If 'geoanalytics' is not installed.
+This package provides tools for managing ArcGIS GIS connections and 
+transferring large-scale data between Databricks and ArcGIS Online.
 """
 
 import importlib.util
 import logging
+from typing import List
 
-# Set package version
+# Package Metadata
 __version__ = "1.0.0"
+__author__ = "ahamptonTIA"
 
-# Set up package-level logging with a NullHandler
-_logger = logging.getLogger(__name__)
-_logger.addHandler(logging.NullHandler())
+# Package-level logging
+# Following library best practices, we attach a NullHandler so the 
+# host application (Databricks) controls the log output.
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
-# 1. Check if the 'geoanalytics' package is installed
-if importlib.util.find_spec("geoanalytics") is None:
-    raise ImportError(
-        "The 'geoanalytics' package is not installed. "
-        "Please install it to use geoanalytics features: "
-        "https://developers.arcgis.com/geoanalytics/install/databricks/"
-    )
+def _verify_geoanalytics_installed():
+    """Verify the presence of geoanalytics before package initialization."""
+    if importlib.util.find_spec("geoanalytics") is None:
+        raise ImportError(
+            "The 'geoanalytics' package is required but was not found. "
+            "Refer to ESRI documentation for installation instructions: "
+            "https://developers.arcgis.com/geoanalytics/install/databricks/"
+        )
 
-# 2. Import core functions from utils for top-level access
+# Execute verification
+_verify_geoanalytics_installed()
+
+# Import core utilities to the top-level namespace for ease of use
 from .utils import (
     check_environment_compatibility,
     initialize_gis_connection,
     reproject_df
 )
 
-# 3. Execute compatibility check immediately upon package import
-try:
-    check_environment_compatibility()
-except Exception as e:
-    _logger.warning(f"Compatibility check could not be completed: {e}")
-
-# 4. Import submodules to expose them under the package namespace
+# Expose submodules
 from . import agol_data_export
 from . import agol_data_import
 from . import utils
 
-__all__ = [
+# Immediate compatibility check upon import
+try:
+    check_environment_compatibility()
+except Exception as e:
+    logger.debug(f"Initial compatibility check deferred: {e}")
+
+__all__: List[str] = [
     'check_environment_compatibility',
     'initialize_gis_connection',
     'reproject_df',

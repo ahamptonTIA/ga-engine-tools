@@ -1,41 +1,69 @@
+import os
 from setuptools import setup, find_packages
 
+# Initialize pathing for README integration
+here = os.path.abspath(os.path.dirname(__file__))
+try:
+    with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
+        long_description = f.read()
+except FileNotFoundError:
+    long_description = "A Python library for ArcGIS and PySpark data operations."
+
 setup(
-	name='ga-engine-tools',
-	version='0.1.0',
-	packages=find_packages(),
-	install_requires=[
-		# 'pandas>=1.0.0',
-		# 'requests>=2.20.0', 
-		'arcgis>=2.4.1',
-		# 'pyspark>=3.0.0', # Note: PySpark is often provided by the environment (e.g., Databricks)
-		# 'packaging>=21.0', # Required for version parsing in compatibility check
-		# 'geoanalytics
-		'html2text',
-		],
-        author='ahamptonTIA', 
-        author_email='ahamptonTIA@users.noreply.github.com', # Left empty intentionally, all project communication should be directed via GitHub Issues as per README.md.
-	description='A Python library offering a collection of utilities for common data '
-				'operations, with a primary focus on managing ArcGIS GIS connections '
-				'and robustly publishing large-scale data to ArcGIS Feature Services '
-				'using PySpark.',
-	long_description=open('README.md').read(),
-	long_description_content_type='text/markdown',
-	url='https://github.com/ahamptonTIA/ga-engine-tools', # GitHub repository URL
-	classifiers=[
-		'Programming Language :: Python :: 3',
-		'Programming Language :: 3.8',
-		'Programming Language :: 3.9',
-		'Programming Language :: 3.10',
-		'Programming Language :: 3.11',
-		'Programming Language :: 3.12',
-		'License :: OSI Approved :: MIT License',
-		'Operating System :: OS Independent',
-		'Development Status :: 3 - Alpha',
-		'Intended Audience :: Developers',
-		'Topic :: Scientific/Engineering :: GIS',
-		'Topic :: Software Development :: Libraries :: Python Modules',
-	],
-	keywords='esri geoanalytics engine gis spatial analysis big data',
-	python_requires='>=3.8',
+    name='ga-engine-tools',
+    version='1.0.0',
+    author='ahamptonTIA',
+    author_email='ahamptonTIA@users.noreply.github.com',
+    description='Utilities for ArcGIS GIS connections and PySpark data operations.',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+    url='https://github.com/ahamptonTIA/ga-engine-tools',
+    
+    # Automatic discovery of ga_engine_tools package structure
+    packages=find_packages(),
+    
+    # Aligned with Databricks Runtime (DBR) 15.x which utilizes Python 3.11
+    python_requires='>=3.10',
+
+    # CORE FUNCTIONAL DEPENDENCIES
+    # Minimum versions defined to ensure API compatibility.
+    # Open-ended ranges allow for existing environment versions to be utilized without force-upgrading.
+    install_requires=[
+        'arcgis>=2.1.4',
+        'geopandas>=1.0.0',
+        'html2text>=2020.1.16',
+        'geoanalytics>=1.0.0',
+    ],
+
+    # OPTIONAL/ENVIRONMENTAL DEPENDENCIES
+    # Core libraries provided by Databricks Runtime (Pandas, PySpark, etc.) are moved here
+    # to prevent installation-time conflicts and kernel restart warnings.
+    extras_require={
+        'local': [
+            'pandas>=2.0.0',
+            'numpy>=1.23.0',
+            'pyspark>=3.5.0',
+            'packaging>=24.0',
+        ],
+    },
+
+    # Metadata and Categorization
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'Topic :: Scientific/Engineering :: GIS',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Operating System :: OS Independent',
+    ],
+    
+    keywords='esri arcgis geoanalytics databricks pyspark gis spatial',
+    
+    project_urls={
+        'Documentation': 'https://github.com/ahamptonTIA/ga-engine-tools#readme',
+        'Source': 'https://github.com/ahamptonTIA/ga-engine-tools',
+        'Tracker': 'https://github.com/ahamptonTIA/ga-engine-tools/issues',
+    },
 )
