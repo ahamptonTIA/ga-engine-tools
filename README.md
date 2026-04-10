@@ -18,14 +18,14 @@ A Python library offering robust utilities for data operations, with a primary f
 ## 🗂️ Package Structure
 
 
-ga-engine-tools/
-├── ga_engine_tools/
-│   ├── __init__.py
-│   ├── agol_data_export.py   # Export DataFrames to ArcGIS Online
-│   ├── agol_data_import.py   # Import data from ArcGIS Online to DataFrames
-│   └── utils.py              # Helper functions for GeoAnalytics workflows
-├── README.md
-├── LICENSE.md
+ga-engine-tools/  
+├── ga_engine_tools/  
+│   ├── __init__.py  
+│   ├── agol_data_export.py   # Export DataFrames to ArcGIS Online  
+│   ├── agol_data_import.py   # Import data from ArcGIS Online to DataFrames  
+│   └── utils.py              # Helper functions for GeoAnalytics workflows  
+├── README.md  
+├── LICENSE.md  
 └── setup.py
 
 
@@ -241,9 +241,3 @@ log_to_table(
 | `log_to_table` | Log operation details to Databricks table. |
 
 ---
-
-## 💡 Best Practices
-
-- Always check environment compatibility before running workflows.
-- Use batching for large data exports to AGOL.
-- Log operations for trace
