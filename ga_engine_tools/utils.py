@@ -38,6 +38,7 @@ GAE_DBR_COMPATIBILITY = {
     parse_version("1.5"): (parse_version("11.3"), parse_version("15.9")),
     parse_version("1.6"): (parse_version("11.3"), parse_version("16.9")),
     parse_version("1.7"): (parse_version("12.2"), parse_version("17.9")),
+    parse_version("1.8"): (parse_version("14.3"), parse_version("18.9")),
 }
 
 # ------------------------------------------------------------------------------------------
@@ -49,14 +50,20 @@ def check_environment_compatibility():
 
     dbr_spark_version_tag = spark.conf.get("spark.databricks.clusterUsageTags.sparkVersion", None)
     if dbr_spark_version_tag:
-        dbr_version_parts = dbr_spark_version_tag.split(".")[0:2]
-        current_dbr_version = parse_version(".".join(dbr_version_parts))
+        # Databricks runtime values can include suffixes like "18.x-photon-scala2"
+        # We only care about the numeric major.minor version portion.
+        version_match = re.search(r'(\d+)\.(\d+)', dbr_spark_version_tag)
+        if version_match:
+            current_dbr_version = parse_version(f"{version_match.group(1)}.{version_match.group(2)}")
+        else:
+            _logger.warning(f"Could not parse Databricks runtime version: {dbr_spark_version_tag}")
 
     if geoanalytics:
         try:
             gae_version_str = pkg_resources.get_distribution("geoanalytics").version
             current_gae_version = parse_version(".".join(gae_version_str.split('.')[:2]))
-        except Exception: pass
+        except Exception as e:
+            _logger.warning(f"Could not parse geoanalytics version: {e}")
 
     if current_dbr_version and current_gae_version:
         if current_gae_version in GAE_DBR_COMPATIBILITY:
@@ -65,6 +72,8 @@ def check_environment_compatibility():
                 print(f"Warning: GAE v{current_gae_version} mismatch with DBR {current_dbr_version}.")
             else:
                 print(f"Compatibility check passed: GAE {current_gae_version} on DBR {current_dbr_version}.")
+        else:
+            print(f"Compatibility check skipped: no compatibility range defined for GAE {current_gae_version}.")
     else:
         print("Compatibility check skipped: Version info missing.")
 
