@@ -3,7 +3,8 @@ import os
 import re
 import time
 import logging
-from datetime import datetime, timedelta
+import requests
+from datetime import datetime, timedelta, timezone
 import html2text
 import uuid
 import hashlib
@@ -267,3 +268,121 @@ def ingest_agol_items_to_unity_catalog(
 
     _logger.info(f"Ingestion process completed for load_id: {load_id}")
     return out_tables
+
+# ------------------------------------------------------------------------------------------
+
+def get_layer_last_data_modified(
+ agol_inst: str,
+ user: str,
+ pswd: str,
+ service_url: str = None,
+ item_id: str = None,
+ layer_index: int = 0,
+):
+    """
+    Return the last time *data* was edited in an ArcGIS Feature Service layer.
+
+    This queries the ``editingInfo/lastEditDate`` property on the layer
+    endpoint, which reflects the most recent insert, update, or delete —
+    NOT the last time the item's metadata was changed.
+
+    Parameters
+    ----------
+    agol_inst : str
+        ArcGIS Online portal URL (e.g. ``'https://nbam.maps.arcgis.com/'``).
+    user : str
+        ArcGIS Online username.
+    pswd : str
+        ArcGIS Online password.
+    service_url : str, optional
+        Full REST URL to a specific layer, e.g.
+        ``'https://services3.arcgis.com/.../FeatureServer/0'``.
+        If provided, `item_id` and `layer_index` are ignored.
+    item_id : str, optional
+        ArcGIS Online item ID. Used (with `layer_index`) when `service_url`
+        is not supplied.
+    layer_index : int, optional
+        Layer index within the feature service. Only used with `item_id`.
+        Default is ``0``.
+
+    Returns
+    -------
+    datetime or None
+        UTC ``datetime`` of the last data edit, or ``None`` if the
+        timestamp is unavailable.
+
+    Raises
+    ------
+    ValueError
+        If neither `service_url` nor `item_id` is provided, or if the
+        given `item_id` cannot be found.
+    requests.HTTPError
+        If the REST request to the layer endpoint fails.
+
+    Notes
+    -----
+    The function first checks ``editingInfo.lastEditDate``, then falls
+    back to ``editingInfo.dataLastEditDate``.  Both are epoch-millisecond
+    timestamps set by the server whenever a feature is inserted, updated,
+    or deleted.
+
+    Examples
+    --------
+    Query by service URL:
+
+    >>> get_layer_last_data_modified(
+    ...     agol_inst, user, pswd,
+    ...     service_url='https://services3.arcgis.com/.../FeatureServer/0',
+    ... )
+    datetime.datetime(2025, 6, 15, 12, 30, 0, tzinfo=datetime.timezone.utc)
+
+    Query by item ID (defaults to layer 0):
+
+    >>> get_layer_last_data_modified(
+    ...     agol_inst, user, pswd,
+    ...     item_id='abc123def456',
+    ... )
+    datetime.datetime(2025, 6, 10, 8, 0, 0, tzinfo=datetime.timezone.utc)
+    """
+    if service_url is None and item_id is None:
+        raise ValueError("Provide either `service_url` or `item_id`.")
+
+    # --- authenticate ---------------------------------------------------------
+    gis = GIS(agol_inst, user, pswd)
+
+    # --- resolve the layer REST URL if only an item_id was given --------------
+    if service_url is None:
+        item = gis.content.get(item_id)
+        if item is None:
+            raise ValueError(f"Item '{item_id}' not found.")
+        service_url = f"{item.url}/{layer_index}"
+
+    # --- query the layer's editingInfo ----------------------------------------
+    token = gis._con.token
+    params = {"f": "json"}
+    if token:
+        params["token"] = token
+
+    resp = requests.get(service_url, params=params)
+    resp.raise_for_status()
+    layer_info = resp.json()
+
+    # editingInfo.lastEditDate is epoch-millis of the most recent data change
+    editing_info = layer_info.get("editingInfo", {})
+    last_edit_ms = editing_info.get("lastEditDate")
+
+    # Some services also expose dataEditDate at the top level
+    if last_edit_ms is None:
+        last_edit_ms = editing_info.get("dataLastEditDate")
+    if last_edit_ms is None:
+        last_edit_ms = layer_info.get("editingInfo", {}).get("dataLastEditDate")
+
+    if last_edit_ms is None:
+        print("⚠️  No data-edit timestamp found. Ensure editing is enabled on this layer.")
+        print(f"   Available editingInfo keys: {list(editing_info.keys())}")
+        return None
+
+    last_edit_dt = datetime.fromtimestamp(last_edit_ms / 1000, tz=timezone.utc)
+    print(f"Layer URL  : {service_url}")
+    print(f"Last data edit (UTC): {last_edit_dt:%Y-%m-%d %H:%M:%S}")
+    return last_edit_dt
