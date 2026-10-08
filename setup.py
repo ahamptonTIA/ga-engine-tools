@@ -5,7 +5,7 @@ setup(
 	version='0.1.0',
 	packages=find_packages(),
 	install_requires=[
-		# 'pandas>=1.0.0',
+		'pandas<3.0.0',     # PySpark does not yet fully support pandas >= 3.0.0
 		# 'requests>=2.20.0', 
 		'arcgis>=2.4.1',
 		# 'pyspark>=3.0.0', # Note: PySpark is often provided by the environment (e.g., Databricks)
