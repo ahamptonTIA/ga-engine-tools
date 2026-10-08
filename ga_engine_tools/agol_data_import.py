@@ -272,12 +272,12 @@ def ingest_agol_items_to_unity_catalog(
 # ------------------------------------------------------------------------------------------
 
 def get_layer_last_data_modified(
- agol_inst: str,
- user: str,
- pswd: str,
- service_url: str = None,
- item_id: str = None,
- layer_index: int = 0,
+    agol_inst: str,
+    user: str,
+    pswd: str,
+    service_url: str = None,
+    item_id: str = None,
+    layer_index: int = 0,
 ):
     """
     Return the last time *data* was edited in an ArcGIS Feature Service layer.
