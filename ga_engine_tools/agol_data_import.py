@@ -26,6 +26,7 @@ from databricks.sdk.runtime import spark
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.window import Window
 from pyspark.sql import functions as F
+from pyspark.sql.types import TimestampType
 
 # ------------------------------------------------------------------------------------------
 
@@ -68,7 +69,8 @@ def _upsert_download_log_entry_(entry_df, log_table):
                         target.layer_name = source.layer_name,
                         target.load_id = source.load_id,
                         target.item_id = source.item_id,
-                        target.sublayer_id = source.sublayer_id
+                        target.sublayer_id = source.sublayer_id,
+                        target.data_modified_utc = source.data_modified_utc
                 WHEN NOT MATCHED THEN
                     INSERT *
             """)
@@ -89,6 +91,9 @@ def ingest_agol_items_to_unity_catalog(
 ):
     """
     Ingests ArcGIS Online feature layers into Unity Catalog tables.
+    
+    Adds a 'data_modified_utc' column to each output table reflecting the last
+    time the layer's data was modified on ArcGIS Online.
     """
     out_tables = []
     items_properties = []
@@ -105,7 +110,7 @@ def ingest_agol_items_to_unity_catalog(
         dfs = {}
         # Ensure item.layers exists and is iterable
         if hasattr(item, 'layers') and item.layers:
-            for layer in item.layers:
+            for layer_index, layer in enumerate(item.layers):
                 layer_name_for_log = layer.properties.get('name', layer.url.split('/')[-1])
                 sublayer_id_for_log = str(layer.properties.get('id', 'N/A'))
 
@@ -120,6 +125,20 @@ def ingest_agol_items_to_unity_catalog(
                 hash_input = f"{target_path_for_log}-{initial_layer_timestamp_str}"
                 layer_attempt_id = hashlib.md5(hash_input.encode('utf-8')).hexdigest()
 
+                # Query the last data modification time from ArcGIS Online
+                data_modified_utc = None
+                try:
+                    data_modified_utc = get_layer_last_data_modified(
+                        agol_inst,
+                        user,
+                        pswd,
+                        service_url=layer.url,
+                    )
+                except Exception as e:
+                    _logger.warning(f"Could not retrieve last data modified time for layer {layer_name_for_log}: {e}")
+
+                data_modified_str = data_modified_utc.strftime('%Y-%m-%d %H:%M:%S UTC') if data_modified_utc else "Unknown"
+
                 # Initial log entry
                 initial_log_entry = {
                     "load_id": load_id,
@@ -130,6 +149,7 @@ def ingest_agol_items_to_unity_catalog(
                     "layer_name": str(layer_name_for_log),
                     "target_path": target_path_for_log,
                     "timestamp": initial_layer_timestamp_str,
+                    "data_modified_utc": data_modified_str,
                     "status": "Pending",
                     "error_message": None
                 }
@@ -149,6 +169,7 @@ def ingest_agol_items_to_unity_catalog(
 
                     layer.properties['out_table_name'] = out_table_name
                     layer.properties['layer_attempt_id'] = layer_attempt_id
+                    layer.properties['data_modified_utc'] = data_modified_utc
                     dfs[layer.url] = {'df': _df, 'props': layer.properties}
 
                     status = 'Read & Reprojected'
@@ -167,6 +188,7 @@ def ingest_agol_items_to_unity_catalog(
                     "layer_name": str(layer_name_for_log),
                     "target_path": target_path_for_log,
                     "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+                    "data_modified_utc": data_modified_str,
                     "status": status,
                     "error_message": error_message
                 }
@@ -197,6 +219,7 @@ def ingest_agol_items_to_unity_catalog(
             table_path = f"{target_schema}.{out_table_name}"
             out_tables.append(table_path)
             layer_attempt_id = lyr_props.get('layer_attempt_id')
+            data_modified_utc = lyr_props.get('data_modified_utc')
 
             if not layer_attempt_id:
                 continue
@@ -210,15 +233,40 @@ def ingest_agol_items_to_unity_catalog(
             _df = _df.withColumnRenamed(geom_col, "geometry_wkt")
             # -------------------
 
+            # --- ADD TIMESTAMP COLUMN ---
+            # Determine a non-conflicting name for the data modification timestamp column
+            timestamp_col_name = "data_modified_utc"
+            existing_cols = set(_df.columns)
+            counter = 1
+            while timestamp_col_name in existing_cols:
+                timestamp_col_name = f"data_modified_utc_{counter}"
+                counter += 1
+
+            # Add the timestamp column to the dataframe
+            if data_modified_utc:
+                _df = _df.withColumn(
+                    timestamp_col_name,
+                    F.lit(data_modified_utc).cast(TimestampType())
+                )
+            else:
+                _df = _df.withColumn(
+                    timestamp_col_name,
+                    F.cast(F.lit(None), TimestampType())
+                )
+            # ----------------------------
+
             # Build Description Text
             lyr_desc_raw = lyr_props.get('description')
             final_desc = html2text.html2text(lyr_desc_raw) if lyr_desc_raw else ""
             if item['description'] and item['description'].strip():
                 final_desc = f"{final_desc}\n\n--- Parent Item Description ---\n{item['description']}"
 
+            data_modified_str = data_modified_utc.strftime('%Y-%m-%d %H:%M:%S UTC') if data_modified_utc else "Unknown"
+
             desc_text = (
                 f"# Table Name : {out_table_name}\n"
                 f"- ArcGIS Online ID: `{item['id']}`\n"
+                f"- Data Last Modified (UTC): {data_modified_str}\n"
                 f"- Description: {final_desc}\n"
                 f"- Spatial Reference Properties:\n"
             )
@@ -229,6 +277,10 @@ def ingest_agol_items_to_unity_catalog(
             combined_tags = list(item['tags'])
             layer_tags = lyr_props.get('tags', [])
             combined_tags.extend(layer_tags if isinstance(layer_tags, list) else [layer_tags])
+            
+            # Add data modified timestamp as a tag
+            if data_modified_utc:
+                combined_tags.append(f"data_modified_{data_modified_utc.strftime('%Y%m%d')}")
             
             final_tags = list(set([re.sub(r'[.,\-=/:]', '_', str(t))[:255] for t in combined_tags if t]))[:50]
 
@@ -261,6 +313,7 @@ def ingest_agol_items_to_unity_catalog(
                 "layer_name": str(layer_name),
                 "target_path": table_path,
                 "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+                "data_modified_utc": data_modified_str,
                 "status": log_status,
                 "error_message": log_error
             }
