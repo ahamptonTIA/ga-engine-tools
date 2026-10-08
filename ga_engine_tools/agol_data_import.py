@@ -37,6 +37,7 @@ _logger = logging.getLogger(__name__)
 def _upsert_download_log_entry_(entry_df, log_table):
     """
     Upserts log entries into the specified log table using 'layer_attempt_id' as the primary key.
+    Creates missing columns in the target table instead of dropping data fields.
     """
     if log_table:
         entry_df.createOrReplaceTempView("log_updates_temp")
@@ -54,6 +55,15 @@ def _upsert_download_log_entry_(entry_df, log_table):
             _logger.info(f"Creating log table: {log_table}")
             entry_df.write.mode('overwrite').format('delta').saveAsTable(log_table)
         else:
+            target_columns = set(spark.table(log_table).columns)
+            source_columns = set(entry_df.columns)
+            missing_columns = source_columns - target_columns
+
+            if missing_columns:
+                _logger.info(f"Adding missing columns to {log_table}: {missing_columns}")
+                for col in sorted(missing_columns):
+                    spark.sql(f"ALTER TABLE {log_table} ADD COLUMN {col} STRING")
+
             # Use layer_attempt_id as the key for upserting individual layer log entries
             spark.sql(f"""
                 MERGE INTO {log_table} AS target
