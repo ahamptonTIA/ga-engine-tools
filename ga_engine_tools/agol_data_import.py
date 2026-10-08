@@ -237,7 +237,7 @@ def ingest_agol_items_to_unity_catalog(
 
             try:
                 _logger.info(f"Writing table: {table_path}")
-                _df.write.mode('overwrite').option('mergeSchema', 'true').saveAsTable(table_path)
+                _df.write.mode('overwrite').option('overwriteSchema', 'true').saveAsTable(table_path)
                 
                 # Set Properties
                 spark.sql(f"ALTER TABLE {table_path} SET TBLPROPERTIES ('comment' = {repr(desc_text)})")
