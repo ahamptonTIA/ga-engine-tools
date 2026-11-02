@@ -292,7 +292,7 @@ def ingest_agol_items_to_unity_catalog(
             if data_modified_utc:
                 combined_tags.append(f"data_modified_{data_modified_utc.strftime('%Y%m%d')}")
             
-            final_tags = list(set([re.sub(r'[.,\-=/:]', '_', str(t))[:255] for t in combined_tags if t]))[:50]
+            final_tags = list(set([re.sub(r'[.,\-=/:]', '_', str(t).strip())[:255] for t in combined_tags if t and str(t).strip()]))[:50]
 
             log_status = "Complete"
             log_error = None
