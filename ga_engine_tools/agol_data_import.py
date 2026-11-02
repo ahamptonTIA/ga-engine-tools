@@ -267,7 +267,7 @@ def ingest_agol_items_to_unity_catalog(
             if isinstance(lyr_props.get('tags'), list):
                 tags.extend(lyr_props['tags'])
             
-            unique_tags = {re.sub(r'[^a-zA-Z0-9]', '_', str(t)).lower()[:255] for t in tags if t}
+            unique_tags = {re.sub(r'[^a-zA-Z0-9]', '_', str(t).strip()).lower()[:255] for t in tags if t and str(t).strip()}
             final_tags = sorted(list(unique_tags))[:50] # UC allows up to 50 tags
 
             try:
